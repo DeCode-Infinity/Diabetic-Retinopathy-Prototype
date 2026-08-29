@@ -40,7 +40,7 @@ This project integrates **data engineering, model training, segmentation, MLOps,
 ---
 
 ## 📁 Project Structure
-
+``` text
 
 dr_screening/
 │
@@ -102,7 +102,7 @@ dr_screening/
 ├── .env.example
 ├── .gitignore
 └── README.md
-
+```
 ---
 
 ## ⚙️ Installation
