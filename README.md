@@ -45,39 +45,44 @@ This project integrates **data engineering, model training, segmentation, MLOps,
 dr_screening/
 │
 ├── 📂 data/
-│   ├── raw/
-│   ├── processed/
-│   ├── splits/
-│   └── augmented/
+│   ├── raw/                    ← Original downloaded datasets
+│   ├── processed/              ← CLAHE enhanced images
+│   ├── splits/                 ← train.csv, val.csv, test.csv
+│   └── augmented/              ← Augmented training data
 │
 ├── 📂 src/
 │   ├── 📂 data/
-│   │   ├── dataset.py
-│   │   ├── preprocessing.py
-│   │   └── augmentation.py
+│   │   ├── __init__.py
+│   │   ├── dataset.py          ← PyTorch Dataset class
+│   │   ├── preprocessing.py    ← CLAHE, Retinex, quality check
+│   │   └── augmentation.py     ← Albumentations pipeline
 │   │
 │   ├── 📂 models/
-│   │   ├── classifier.py
-│   │   ├── segmentation.py
-│   │   └── losses.py
+│   │   ├── __init__.py
+│   │   ├── classifier.py       ← EfficientNet/ResNet architecture
+│   │   ├── segmentation.py     ← Frangi, Active Contours
+│   │   └── losses.py           ← Focal loss, Dice loss
 │   │
 │   ├── 📂 training/
-│   │   ├── train.py
-│   │   ├── trainer.py
-│   │   ├── evaluate.py
-│   │   └── callbacks.py
+│   │   ├── train.py            ← Main training script
+│   │   ├── trainer.py          ← Trainer class
+│   │   ├── evaluate.py         ← Clinical metrics
+│   │   └── callbacks.py        ← Early stop, LR schedule
 │   │
 │   ├── 📂 explainability/
-│   │   ├── gradcam.py
-│   │   └── calibration.py
+│   │   ├── gradcam.py          ← Grad-CAM implementation
+│   │   └── calibration.py      ← Temperature/Platt scaling
 │   │
 │   └── 📂 api/
-│       ├── main.py
-│       ├── schemas.py
-│       └── inference.py
+│       ├── main.py             ← FastAPI app
+│       ├── schemas.py          ← Pydantic models
+│       └── inference.py        ← Inference pipeline
 │
-├── 📂 frontend/
-│   └── React/Next.js app
+├── 📂 frontend/                ← React app
+│   ├── src/
+│   │   ├── components/
+│   │   └── pages/
+│   └── package.json
 │
 ├── 📂 notebooks/
 │   ├── 01_eda.ipynb
@@ -85,10 +90,10 @@ dr_screening/
 │   └── 03_model_evaluation.ipynb
 │
 ├── 📂 configs/
-│   └── config.yaml
+│   └── config.yaml             ← Sab hyperparameters yahan
 │
-├── 📂 checkpoints/
-├── 📂 tests/
+├── 📂 checkpoints/             ← Saved model weights
+├── 📂 tests/                   ← Unit tests
 ├── 📂 docker/
 │   ├── Dockerfile
 │   └── docker-compose.yml
@@ -97,7 +102,6 @@ dr_screening/
 ├── .env.example
 ├── .gitignore
 └── README.md
-
 
 ---
 
