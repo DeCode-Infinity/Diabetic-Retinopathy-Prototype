@@ -1,4 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
+
+// ─── BACKEND API ─────────────────────────────────────────────────────────────
+// Your FastAPI server (inference_api.py) must be running and reachable here.
+// If it's on Kaggle/Colab, expose it via ngrok and paste that URL instead.
+const API_URL = "http://localhost:8000";
 
 // ─── DATA ───────────────────────────────────────────────────────────────────
 const GRADES = [
@@ -43,143 +48,8 @@ const PHASES = [
 ];
 const PHASE_MS = [900, 1100, 1400, 1800, 1000];
 
-const SAMPLES = [
-  { label: "Healthy Retina",  grade: 0, dot: "#22C55E" },
-  { label: "Moderate NPDR",   grade: 2, dot: "#FBBF24" },
-  { label: "Proliferative DR",grade: 4, dot: "#EF4444" },
-];
-
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
-function mkRand(seed) {
-  let s = seed;
-  return () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
-}
 
-function generateFundus(grade) {
-  const cv = document.createElement("canvas");
-  cv.width = cv.height = 600;
-  const ctx = cv.getContext("2d");
-  const cx = 300, cy = 300, R = 285;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
-
-  // Retinal background
-  const bg = ctx.createRadialGradient(cx, cy, 10, cx, cy, R);
-  bg.addColorStop(0,   "#5c2200");
-  bg.addColorStop(0.4, "#3e1400");
-  bg.addColorStop(0.7, "#2a0c00");
-  bg.addColorStop(1,   "#110400");
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, 600, 600);
-
-  // Optic disc
-  const odx = 405, ody = 268;
-  const od = ctx.createRadialGradient(odx, ody, 0, odx, ody, 52);
-  od.addColorStop(0, "#ffe5b0"); od.addColorStop(0.45, "#e8a855");
-  od.addColorStop(0.75, "#b06825"); od.addColorStop(1, "transparent");
-  ctx.fillStyle = od; ctx.beginPath(); ctx.arc(odx, ody, 52, 0, Math.PI * 2); ctx.fill();
-
-  // Vessels
-  ctx.strokeStyle = "rgba(88,14,0,0.82)"; ctx.lineCap = "round";
-  const segs = [
-    { cp: [[352,238],[278,193]], ep: [168,172], w: 3.2 },
-    { cp: [[376,296],[310,362]], ep: [188,416], w: 3.5 },
-    { cp: [[416,294],[477,354]], ep: [514,424], w: 2.8 },
-    { cp: [[432,246],[476,198]], ep: [492,152], w: 2.5 },
-    { cp: [[352,270],[292,294]], ep: [192,298], w: 2.6 },
-  ];
-  segs.forEach(s => {
-    ctx.lineWidth = s.w;
-    ctx.beginPath(); ctx.moveTo(odx, ody);
-    ctx.bezierCurveTo(...s.cp[0], ...s.cp[1], ...s.ep); ctx.stroke();
-    ctx.lineWidth = s.w * 0.48;
-    const mx = (s.cp[0][0]+s.cp[1][0])/2, my = (s.cp[0][1]+s.cp[1][1])/2;
-    ctx.beginPath(); ctx.moveTo(mx, my);
-    ctx.quadraticCurveTo(mx+18, my-22, s.ep[0]-18, s.ep[1]-48); ctx.stroke();
-  });
-
-  // Fovea
-  const fov = ctx.createRadialGradient(228,294,0, 228,294,28);
-  fov.addColorStop(0, "rgba(14,4,0,0.68)"); fov.addColorStop(1, "transparent");
-  ctx.fillStyle = fov; ctx.beginPath(); ctx.arc(228,294,28,0,Math.PI*2); ctx.fill();
-
-  // Pathology
-  const r1 = mkRand(grade * 71 + 13);
-  if (grade >= 1) {
-    for (let i = 0; i < grade*4+3; i++) {
-      const x=155+r1()*290, y=155+r1()*290;
-      const d=ctx.createRadialGradient(x,y,0,x,y,3.5);
-      d.addColorStop(0,"rgba(175,18,0,0.9)"); d.addColorStop(1,"transparent");
-      ctx.fillStyle=d; ctx.beginPath(); ctx.arc(x,y,3.5,0,Math.PI*2); ctx.fill();
-    }
-  }
-  if (grade >= 2) {
-    const r2=mkRand(grade*43+77);
-    for (let i=0;i<grade*2+2;i++) {
-      const x=165+r2()*270, y=175+r2()*250;
-      const ex=ctx.createRadialGradient(x,y,0,x,y,5+r2()*4);
-      ex.addColorStop(0,"rgba(255,238,136,0.88)"); ex.addColorStop(1,"transparent");
-      ctx.fillStyle=ex; ctx.beginPath(); ctx.arc(x,y,7+r2()*4,0,Math.PI*2); ctx.fill();
-    }
-  }
-  if (grade >= 3) {
-    const r3=mkRand(grade*29+53);
-    for (let i=0;i<5;i++) {
-      const x=145+r3()*310, y=165+r3()*270;
-      const h=ctx.createRadialGradient(x,y,0,x,y,11+r3()*13);
-      h.addColorStop(0,"rgba(128,0,0,0.82)"); h.addColorStop(0.5,"rgba(100,0,0,0.38)"); h.addColorStop(1,"transparent");
-      ctx.fillStyle=h; ctx.beginPath(); ctx.arc(x,y,14+r3()*13,0,Math.PI*2); ctx.fill();
-    }
-  }
-  if (grade===4) {
-    const r4=mkRand(211);
-    ctx.strokeStyle="rgba(255,75,75,0.7)"; ctx.lineWidth=1;
-    for(let i=0;i<8;i++){
-      const a=r4()*Math.PI*2, l=36+r4()*44;
-      ctx.beginPath(); ctx.moveTo(odx,ody);
-      ctx.quadraticCurveTo(odx+Math.cos(a+0.3)*l*0.6+r4()*14-7,ody+Math.sin(a+0.3)*l*0.6+r4()*14-7,odx+Math.cos(a)*l,ody+Math.sin(a)*l);
-      ctx.stroke();
-    }
-  }
-
-  // Vignette
-  const vig=ctx.createRadialGradient(cx,cy,R*0.65,cx,cy,R);
-  vig.addColorStop(0,"transparent"); vig.addColorStop(1,"rgba(0,0,0,0.78)");
-  ctx.fillStyle=vig; ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
-  ctx.restore();
-  return cv.toDataURL("image/jpeg",0.92);
-}
-
-function applyGradcam(canvas, img, grade) {
-  const ctx=canvas.getContext("2d");
-  const W=600,H=600;
-  canvas.width=W; canvas.height=H;
-  ctx.drawImage(img,0,0,W,H);
-  if(grade===0) return;
-  const rand=mkRand(grade*47+91);
-  const counts=[0,3,5,7,10];
-  for(let i=0;i<counts[grade];i++){
-    const cx2=(0.18+rand()*0.64)*W, cy2=(0.18+rand()*0.64)*H;
-    const r2=(0.055+rand()*0.085)*W, alpha=0.42+rand()*0.34;
-    const c=grade<=1?[80,255,80]:grade===2?[255,175,0]:[255,38,0];
-    const grd=ctx.createRadialGradient(cx2,cy2,0,cx2,cy2,r2);
-    grd.addColorStop(0,`rgba(${c},${alpha})`);
-    grd.addColorStop(0.45,`rgba(${c},${alpha*0.42})`);
-    grd.addColorStop(1,`rgba(${c},0)`);
-    ctx.globalCompositeOperation="screen";
-    ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
-  }
-  ctx.globalCompositeOperation="source-over";
-}
-
-function makeProbs(grade) {
-  const rand=mkRand(grade*31+(Date.now()%97));
-  const main=0.70+rand()*0.24;
-  const raw=Array(5).fill(0).map((_,i)=>i===grade?0:rand());
-  const sum=raw.reduce((a,b)=>a+b,0);
-  return raw.map((v,i)=>i===grade?main:(v/sum)*(1-main));
-}
-
-// ─── SCREENING FILTER (gatekeeper stage, runs BEFORE the DR pipeline) ────────
 // Rule-based check: real fundus photos are near-circular with a dark
 // vignette and a red/orange-dominant palette. Rejects obvious non-retina
 // images (carrots, faces, random photos) without needing a trained model.
@@ -242,17 +112,19 @@ export default function DRScreenAI() {
   const [results,setResults]=useState(null);
   const [tab,setTab]=useState("original");
   const [dragging,setDragging]=useState(false);
+  const [error,setError]=useState("");
 
   const fileRef=useRef(null);
-  const imgRef=useRef(null);
-  const camRef=useRef(null);
   const timers=useRef([]);
 
-  const runPipeline=useCallback((src,grade)=>{
+  // Real pipeline: fires the actual model request while a cosmetic phase
+  // animation plays; transitions to results once BOTH are done (whichever
+  // takes longer), so the UI never looks jumpy on a fast/slow network.
+  const runPipeline=useCallback((src,file)=>{
     timers.current.forEach(clearTimeout);
     timers.current=[];
     setImgSrc(src); setStage("processing");
-    setPhaseIdx(-1); setDone([]); setTab("original"); setResults(null);
+    setPhaseIdx(-1); setDone([]); setTab("original"); setResults(null); setError("");
 
     let t=400;
     PHASES.forEach((_,i)=>{
@@ -261,17 +133,26 @@ export default function DRScreenAI() {
       const snap=i;
       timers.current.push(setTimeout(()=>setDone(p=>[...p,snap]),t));
     });
-    timers.current.push(setTimeout(()=>{
-      const probs=makeProbs(grade);
-      const r2=mkRand(grade*17+83);
-      setResults({
-        grade, confidence:probs[grade], probs,
-        quality:Math.floor(81+r2()*17),
-        sharpness:(108+r2()*95).toFixed(0),
-        entropy:(6.0+r2()*1.5).toFixed(2),
+    const minWait=new Promise(resolve=>{ timers.current.push(setTimeout(resolve,t+300)); });
+
+    const formData=new FormData();
+    formData.append("file",file);
+
+    const apiCall=fetch(`${API_URL}/predict`,{method:"POST",body:formData})
+      .then(async res=>{
+        if(!res.ok){
+          const body=await res.json().catch(()=>null);
+          const msg=body?.detail?.message
+            ? `${body.detail.message} (${(body.detail.issues||[]).join(", ")})`
+            : `Server responded ${res.status}`;
+          throw new Error(msg);
+        }
+        return res.json();
       });
-      setStage("results");
-    },t+500));
+
+    Promise.all([apiCall,minWait])
+      .then(([data])=>{ setResults(data); setStage("results"); })
+      .catch(err=>{ setError(err.message||"Could not reach the model server."); setStage("apiError"); });
   },[]);
 
   const handleFile=useCallback((file)=>{
@@ -293,21 +174,14 @@ export default function DRScreenAI() {
         if(settled)return; settled=true; clearTimeout(timeout);
         const ok=checkIsRetina(img);           // <-- pipeline decision point
         if(!ok){ setImgSrc(dataUrl); setStage("rejected"); return; }
-        const g=[0,0,1,2,2,3,4][Math.floor(Math.random()*7)];
-        runPipeline(dataUrl,g);                // only valid images proceed
+        runPipeline(dataUrl,file);              // real file -> real model on the backend
       };
       img.src=dataUrl;
     };
     rdr.readAsDataURL(file);
   },[runPipeline]);
 
-  const reset=useCallback(()=>{ timers.current.forEach(clearTimeout); setStage("upload"); setImgSrc(null); setResults(null); setPhaseIdx(-1); setDone([]); },[]);
-
-  useEffect(()=>{
-    if(stage!=="results"||!results||!camRef.current)return;
-    const tryDraw=()=>{ const img=imgRef.current; if(img&&img.complete&&img.naturalWidth>0){ applyGradcam(camRef.current,img,results.grade); } else if(img){ img.onload=()=>applyGradcam(camRef.current,img,results.grade); } };
-    setTimeout(tryDraw,80);
-  },[stage,results,tab]);
+  const reset=useCallback(()=>{ timers.current.forEach(clearTimeout); setStage("upload"); setImgSrc(null); setResults(null); setPhaseIdx(-1); setDone([]); setError(""); },[]);
 
   // Tokens
   const C={ bg:"#020B18", surface:"#071525", card:"#0C2040", border:"#143058", accent:"#00BFFF", text:"#E2EDF8", sub:"#6A8FAE", muted:"#2E5070" };
@@ -368,6 +242,15 @@ export default function DRScreenAI() {
           </div>
         )}
 
+        {/* ══ API ERROR ═══════════════════════════════════════════════════════════ */}
+        {stage==="apiError"&&(
+          <div style={{textAlign:"center",padding:"60px 20px",animation:"drFade 0.3s ease"}}>
+            <div style={{fontSize:15,fontWeight:600,color:"#F87171",marginBottom:8}}>Couldn't reach the model server</div>
+            <div style={{fontSize:12,color:C.sub,marginBottom:20}}>{error||"Check that the backend (inference_api.py) is running and reachable at the configured API_URL."}</div>
+            <button className="dr-cta" onClick={reset} style={{padding:"9px 20px",borderRadius:8,border:"none",background:C.accent,color:"#02121F",fontWeight:600,cursor:"pointer",fontSize:12}}>Try Again</button>
+          </div>
+        )}
+
         {/* ══ REJECTED ════════════════════════════════════════════════════════════ */}
         {stage==="rejected"&&(
           <div style={{textAlign:"center",padding:"60px 20px",animation:"drFade 0.3s ease"}}>
@@ -415,24 +298,6 @@ export default function DRScreenAI() {
               <div style={{color:C.sub,fontSize:12,marginBottom:18}}>JPG · PNG · TIFF accepted</div>
               <div style={{display:"inline-block",padding:"7px 18px",borderRadius:7,background:"rgba(0,191,255,0.1)",border:"1px solid rgba(0,191,255,0.25)",fontSize:12,color:C.accent,fontWeight:500}}>Browse Files</div>
               <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={e=>handleFile(e.target.files[0])}/>
-            </div>
-
-            {/* Sample cases */}
-            <div style={{textAlign:"center",marginBottom:16}}>
-              <div style={{display:"inline-flex",alignItems:"center",gap:10}}>
-                <div style={{width:40,height:1,background:C.border}}/><span style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>or try a sample case</span><div style={{width:40,height:1,background:C.border}}/>
-              </div>
-            </div>
-            <div style={{display:"flex",gap:12,justifyContent:"center",flexWrap:"wrap",marginBottom:48}}>
-              {SAMPLES.map(s=>(
-                <button key={s.grade} className="dr-sample" onClick={()=>runPipeline(generateFundus(s.grade),s.grade)} style={{padding:"12px 20px",borderRadius:10,background:"rgba(12,32,64,0.5)",border:`1px solid ${C.border}`,color:C.text,cursor:"pointer",display:"flex",alignItems:"center",gap:10,fontFamily:"'Inter'"}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:s.dot,boxShadow:`0 0 6px ${s.dot}`}}/>
-                  <div style={{textAlign:"left"}}>
-                    <div style={{fontSize:12,fontWeight:600}}>{s.label}</div>
-                    <div style={{fontSize:10,color:C.sub}}>Grade {s.grade} · Simulated</div>
-                  </div>
-                </button>
-              ))}
             </div>
 
             {/* Feature pills */}
@@ -529,8 +394,11 @@ export default function DRScreenAI() {
                   </div>
 
                   <div style={{borderRadius:12,overflow:"hidden",border:`1px solid ${C.border}`,background:"#000",aspectRatio:"1",position:"relative"}}>
-                    <img ref={imgRef} src={imgSrc} alt="Fundus" style={{width:"100%",height:"100%",objectFit:"cover",display:tab==="heatmap"?"none":"block",filter:tab==="enhanced"?"contrast(1.42) brightness(1.12) saturate(0.72)":"none"}}/>
-                    <canvas ref={camRef} style={{width:"100%",height:"100%",objectFit:"cover",display:tab==="heatmap"?"block":"none"}}/>
+                    <img
+                      src={tab==="enhanced"?results.enhanced:tab==="heatmap"?results.heatmap:imgSrc}
+                      alt="Fundus"
+                      style={{width:"100%",height:"100%",objectFit:"cover"}}
+                    />
                     <div style={{position:"absolute",top:9,left:9,padding:"3px 8px",borderRadius:4,background:"rgba(0,0,0,0.65)",backdropFilter:"blur(6px)",fontSize:8,color:C.accent,textTransform:"uppercase",letterSpacing:"1px",fontFamily:"'JetBrains Mono'"}}>
                       {tab==="enhanced"?"CLAHE Enhanced":tab==="heatmap"?"Grad-CAM Attention":"Original Fundus"}
                     </div>
