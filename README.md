@@ -90,7 +90,7 @@ dr_screening/
 │   └── 03_model_evaluation.ipynb
 │
 ├── 📂 configs/
-│   └── config.yaml             ← Sab hyperparameters yahan
+│   └── config.yaml             ← all hyperparameters
 │
 ├── 📂 checkpoints/             ← Saved model weights
 ├── 📂 tests/                   ← Unit tests
